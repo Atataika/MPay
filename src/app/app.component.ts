@@ -1,7 +1,18 @@
 import { Component, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from "@angular/forms";
 import { MockApiService } from "./api/mock-api.service";
-import { BehaviorSubject, catchError, filter, finalize, of } from "rxjs";
+import {
+  BehaviorSubject,
+  catchError,
+  filter,
+  finalize,
+  interval,
+  map,
+  Observable,
+  of,
+  switchMap,
+  takeWhile,
+} from "rxjs";
 import { UserInterface } from "./shared/user.interface";
 import { ApiInterface } from "./shared/api.interface";
 
@@ -15,6 +26,7 @@ export class AppComponent implements OnInit {
   public loginResult$ = new BehaviorSubject<ApiInterface<UserInterface> | null>(null);
   public loginForm = this.initForm();
   public isLoading: boolean = false;
+  public remainingLockTime$: Observable<number>;
 
   private readonly errorDisplayTimeout = 1000 * 5; // 5 секунд
   private readonly loginLockTimeout = 1000 * 60; // 1 минута
@@ -23,11 +35,11 @@ export class AppComponent implements OnInit {
   constructor(
     private fb: FormBuilder,
     private mockApiService: MockApiService,
-  ) {
-  }
+  ) { }
 
   ngOnInit() {
     this.checkTimeoutLockInStorage();
+    this.remainingLockTime$ = this.subscribeToRemainingTime();
   }
 
   public onLogin(): void {
@@ -80,5 +92,14 @@ export class AppComponent implements OnInit {
     localStorage.removeItem(this.loginLockStorageKey);
 
     return 0;
+  }
+
+  private subscribeToRemainingTime(): Observable<number> {
+    return interval(1000)
+      .pipe(
+        switchMap(() => of(this.getRemainingTimeoutLockFromStorage())),
+        map(remainingTime => Math.floor(remainingTime / 1000)),
+        takeWhile(remainingTime => remainingTime >= 0)
+      )
   }
 }
